@@ -65,7 +65,7 @@ export default function BranchPage({ params }: { params: Promise<{ id: string }>
 
   if (!detail) return <div className="page muted">{banner ?? "Loading…"}</div>;
 
-  const readOnly = detail.branch.status === "archived";
+  const readOnly = detail.branch.status === "archived" || detail.branch.isMain;
 
   const addOp = (op: Op): string | null => {
     // Validate against the previewed schema before accepting into the tray.
@@ -119,7 +119,8 @@ export default function BranchPage({ params }: { params: Promise<{ id: string }>
           {detail.branch.name}
         </h1>
         {detail.branch.isMain && <span className="tag accent">default</span>}
-        {readOnly && <span className="tag neutral">merged &amp; archived — read only</span>}
+        {detail.branch.isMain && <span className="tag neutral">changes arrive through merges</span>}
+        {readOnly && !detail.branch.isMain && <span className="tag neutral">merged &amp; archived — read only</span>}
         <span style={{ flex: 1 }} />
         {!detail.branch.isMain && !readOnly && (
           <Link className="btn primary" href={`/branches/${detail.branch.id}/compare`}>
@@ -129,7 +130,7 @@ export default function BranchPage({ params }: { params: Promise<{ id: string }>
       </div>
       <p className="muted small" style={{ marginTop: 0 }}>
         {detail.branch.isMain
-          ? "The shared source of truth. Commits land here directly or through merges."
+          ? "The shared source of truth. It changes only through merges — create a branch to make a change."
           : readOnly
             ? "This branch was merged into main and is kept for history."
             : `${detail.aheadOfMain} commit${detail.aheadOfMain === 1 ? "" : "s"} ahead of main` +
@@ -143,12 +144,13 @@ export default function BranchPage({ params }: { params: Promise<{ id: string }>
 
       <div className={pending.length > 0 || !readOnly ? "editor-layout" : undefined}>
         <div>
-          {Object.keys(detail.schema.tables).length === 0 && pending.length === 0 && !readOnly && (
+          {Object.keys(detail.schema.tables).length === 0 && pending.length === 0 && (
             <div className="empty-state card">
               <h2>{detail.branch.isMain ? "The schema is empty" : "Your branch starts from an empty schema"}</h2>
               <p>
-                Create the first table below{detail.branch.isMain ? ", or load the template from the branches page" : ""}. Every change
-                you make lands in the tray on the right; commit them as one batch with a message.
+                {detail.branch.isMain
+                  ? "Load the e-commerce template from the branches page, or create a branch to add your first table — main itself only changes through merges."
+                  : "Create the first table below. Every change you make lands in the tray on the right; commit them as one batch with a message."}
               </p>
             </div>
           )}

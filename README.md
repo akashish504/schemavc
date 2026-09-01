@@ -9,8 +9,8 @@ Branch, diff, and merge database schemas **semantically**. Git merges text; two 
 1. Sign up (any email — it only attributes your changes; everyone shares one repository).
 2. On **Branches**, click **Load the template** — a realistic e-commerce schema (users, products, orders, order_items with keys, FKs, checks, indexes) lands as a commit on main.
 3. Create a branch, e.g. `feature/order-status`. On it: add a `status varchar(20)` column to `orders`, then an index on it. Commit both from the pending tray.
-4. Now play the teammate: go to **main** and add a `status text` column to `orders` too. Commit.
-5. Back on your branch → **Compare with main**. The same-name add is caught as a conflict *with attribution and consequences spelled out* — pick **Keep your change** and watch the merge commit gain a compensating op that reverses main's column. Merge.
+4. Now play the teammate: create a second branch, add a `status text` column to `orders` there, and merge it (main itself only changes through merges).
+5. Back on your first branch → **Compare with main**. The same-name add is caught as a conflict *with attribution and consequences spelled out* — pick **Keep your change** and watch the merge commit gain a compensating op that reverses main's column. Merge.
 6. The **Deploy** page shows the pending migration SQL (dependency-ordered, one transaction, destructive ops annotated), a preflight you must acknowledge, and a deployed-pointer timeline. Copy the SQL or mark it deployed.
 
 Things worth trying to break: rename a column on one branch while indexing it on another (auto-merges — identity is id-based, not name-based); drop a table one branch, FK to it from another (cross-table conflict); commit from two tabs at once (optimistic 409, your tray survives).
