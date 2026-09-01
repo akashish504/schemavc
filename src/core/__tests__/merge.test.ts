@@ -405,3 +405,37 @@ describe("merge: advisory warnings", () => {
     expect(result.conflicts).toHaveLength(0);
   });
 });
+
+describe("merge: compensation ordering on a real database", () => {
+  it("keep-yours over a teammate's column+index emits DROP INDEX before DROP COLUMN", () => {
+    // main added a column and an index on it; feature adds a same-named column.
+    // Keep-yours compensates by dropping main's column AND its index — the
+    // index drop must come first, or Postgres cascades it away with the column
+    // and the explicit DROP INDEX fails mid-transaction.
+    const mainColId = id("c:m.chan");
+    const mk = (): MergeInput => ({
+      fork: baseSchema(),
+      mainOps: attrs(
+        "m",
+        { kind: "add_column", tableId: ids.orders, column: { id: mainColId, name: "channel", type: "text", nullable: true, default: null } },
+        { kind: "add_index", tableId: ids.orders, index: { id: id("i:m.chan"), name: "m_channel_idx", columns: [mainColId], unique: false } }
+      ),
+      featureOps: attrs("f", { kind: "add_column", tableId: ids.orders, column: col("c:f.chan", "channel", "varchar(20)", { nullable: true }) }),
+    });
+    const first = merge(mk(), []);
+    if (first.status === "error") throw new Error("unexpected error");
+    const resolutions = blocking(first).map((c) => ({ conflictId: c.id, choice: "yours" as const }));
+    let result = merge(mk(), resolutions);
+    // resolving may surface the dangling index as a follow-up conflict
+    for (let i = 0; i < 3 && result.status === "blocked"; i++) {
+      resolutions.push(...blocking(result).filter((c) => !c.resolved).map((c) => ({ conflictId: c.id, choice: "yours" as const })));
+      result = merge(mk(), resolutions);
+    }
+    expect(result.status).toBe("clean");
+    if (result.status !== "clean" || !result.mergedOps) return;
+    const kinds = result.mergedOps.map((o) => o.kind);
+    expect(kinds).toContain("drop_index");
+    expect(kinds).toContain("drop_column");
+    expect(kinds.indexOf("drop_index")).toBeLessThan(kinds.indexOf("drop_column"));
+  });
+});

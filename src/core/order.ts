@@ -11,7 +11,7 @@
  * an internal error, never a user-facing state.
  */
 
-import type { Id, Schema } from "./model";
+import { findConstraint, findIndex, type Id, type Schema } from "./model";
 import { tableIds } from "./model";
 import type { Op } from "./ops";
 
@@ -58,12 +58,31 @@ function staticEffects(op: Op, schemaBefore: Schema): StaticEffects {
       if (c.kind === "foreign_key") reads.push(...c.columns, c.references.table, ...c.references.columns);
       return { creates: [c.id], modifies: [], reads, deletes: [] };
     }
-    case "drop_constraint":
-      return { creates: [], modifies: [], reads: [], deletes: [op.constraintId] };
+    case "drop_constraint": {
+      // A constraint must be dropped while everything it references still
+      // exists: on a real database, dropping a referenced column or table
+      // first either fails or cascades the constraint away, making our own
+      // DROP CONSTRAINT statement fail. Declaring the references as reads
+      // orders the drop before them.
+      const found = findConstraint(schemaBefore, op.constraintId);
+      const reads: Id[] = [];
+      if (found) {
+        reads.push(found.table.id);
+        const c = found.constraint;
+        if (c.kind === "primary_key" || c.kind === "unique") reads.push(...c.columns);
+        if (c.kind === "foreign_key") reads.push(...c.columns, c.references.table, ...c.references.columns);
+      }
+      return { creates: [], modifies: [], reads, deletes: [op.constraintId] };
+    }
     case "add_index":
       return { creates: [op.index.id], modifies: [], reads: [op.tableId, ...op.index.columns], deletes: [] };
-    case "drop_index":
-      return { creates: [], modifies: [], reads: [], deletes: [op.indexId] };
+    case "drop_index": {
+      // Same as drop_constraint: dropping the column first would cascade the
+      // index away and our DROP INDEX would then fail.
+      const found = findIndex(schemaBefore, op.indexId);
+      const reads: Id[] = found ? [found.table.id, ...found.index.columns] : [];
+      return { creates: [], modifies: [], reads, deletes: [op.indexId] };
+    }
   }
 }
 

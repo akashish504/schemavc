@@ -10,6 +10,7 @@ import { describeOp } from "@/core/describe";
 import { merge, type Conflict, type MergeResult, type Resolution } from "@/core/merge";
 import type { Schema } from "@/core/model";
 import type { Op } from "@/core/ops";
+import { order } from "@/core/order";
 import { migrationScript, migrationStatements, schemaToSql } from "@/core/sql";
 import { tag } from "@/core/safety";
 import { validate } from "@/core/validate";
@@ -321,8 +322,9 @@ export async function deployStatus() {
   if (!deployedCommit) throw notFound("deployed commit");
   const pending = await commitChain(main.head, target.deployed_commit);
   const pendingOps = attributedOps(pending);
+  const orderedOps = orderedPendingOps(pendingOps.map((a) => a.op), deployedCommit.snapshot);
   const sql = migrationScript({
-    ops: pendingOps.map((a) => a.op),
+    ops: orderedOps,
     startSchema: deployedCommit.snapshot,
     header: [
       `schema-vc migration: ${pending.length} commit(s), ${pendingOps.length} operation(s)`,
@@ -330,8 +332,9 @@ export async function deployStatus() {
     ],
   });
 
-  const preflight = describeOps(pendingOps.map((a) => a.op), deployedCommit.snapshot)
-    .map((c, i) => ({ ...c, author: pendingOps[i].author, commitId: pendingOps[i].commitId }))
+  const authorByOp = new Map(pendingOps.map((a) => [a.op, a]));
+  const preflight = describeOps(orderedOps, deployedCommit.snapshot)
+    .map((c, i) => ({ ...c, author: authorByOp.get(orderedOps[i])?.author ?? "", commitId: authorByOp.get(orderedOps[i])?.commitId ?? "" }))
     .filter((c) => c.safety.level !== "additive");
 
   const timeline = (await commitChain(main.head, null))
@@ -372,6 +375,19 @@ export async function deployStatus() {
   };
 }
 
+/**
+ * Dependency-order the pending range's ops before SQL generation. Ops within
+ * one commit already replay in order, but across commits (and especially in
+ * merge compensations) a drop_column can precede the drop_index of an index
+ * on it — valid in the model, broken on a real database where the column
+ * drop cascades the index away. Falls back to commit order on a cycle
+ * (which the effects model should make impossible).
+ */
+function orderedPendingOps(ops: Op[], startSchema: Schema): Op[] {
+  const ordered = order(ops, startSchema);
+  return ordered.ok ? ordered.ops : ops;
+}
+
 async function preparePendingDeploy(expectedHead: string) {
   const target = await getTarget();
   if (!target) throw notFound("deploy target");
@@ -382,7 +398,7 @@ async function preparePendingDeploy(expectedHead: string) {
   const deployedCommit = await getCommit(target.deployed_commit);
   if (!deployedCommit) throw notFound("deployed commit");
   const pending = await commitChain(main.head, target.deployed_commit);
-  const ops = pending.flatMap((c) => c.ops);
+  const ops = orderedPendingOps(pending.flatMap((c) => c.ops), deployedCommit.snapshot);
   return { target, main, deployedCommit, ops };
 }
 
