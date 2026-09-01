@@ -8,6 +8,7 @@
  */
 
 import { useMemo, useState } from "react";
+import { bareWordDefaultSuggestion } from "@/core/defaults";
 import { newId } from "@/core/ids";
 import type { Column, Constraint, Id, Index, Schema, Table } from "@/core/model";
 import type { Op } from "@/core/ops";
@@ -321,7 +322,11 @@ function ColumnRow({ column, table, className, readOnly, form, setForm, submit }
           label="default expression (empty to remove)"
           allowEmpty
           free
-          onSubmit={(value) => submit({ kind: "set_default", columnId: column.id, default: value === "" ? null : value })}
+          onSubmit={(value) => {
+            const suggestion = value === "" ? null : bareWordDefaultSuggestion(value);
+            if (suggestion !== null) return `Postgres reads ${value} as a column reference — for the string literal, write ${suggestion}`;
+            return submit({ kind: "set_default", columnId: column.id, default: value === "" ? null : value });
+          }}
           onCancel={() => setForm(null)}
         />
       </div>
@@ -486,9 +491,13 @@ function ColumnForm({ onSubmit, onCancel }: { onSubmit: (column: Column) => stri
           setError("invalid type parameters");
           return;
         }
-        setError(
-          onSubmit({ id: newId(), name: name.trim(), type, nullable, default: defaultValue.trim() === "" ? null : defaultValue.trim() })
-        );
+        const def = defaultValue.trim() === "" ? null : defaultValue.trim();
+        const suggestion = def === null ? null : bareWordDefaultSuggestion(def);
+        if (suggestion !== null) {
+          setError(`Postgres reads ${def} as a column reference — for the string literal, write ${suggestion}`);
+          return;
+        }
+        setError(onSubmit({ id: newId(), name: name.trim(), type, nullable, default: def }));
       }}
     >
       <div className="field">

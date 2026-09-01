@@ -24,6 +24,8 @@ Teams already version schemas — as migration files in git. But git merges text
 
 **Consequence accepted:** `default` values and `check` expressions are opaque strings passed through to DDL verbatim. Parsing SQL expressions is the same rabbit hole in miniature.
 
+**One targeted exception, learned the hard way:** typing `US` as a default reads naturally but is a *column reference* to Postgres — and with opaque expressions, the failure only surfaced when a real deploy ran the migration (it rolled back cleanly, which proved the safety net, but that's far too late for feedback). Since a bare word is almost never a valid default, a small lint now flags it at the form and at the API boundary with the quoted form the user almost certainly meant (`'US'`), while anything with quotes, parentheses, or digits is still trusted verbatim. Deploy-time failure → inline suggestion, without opening the expression-parsing door.
+
 ## 3. Stable ids on every entity — the rename problem dissolves
 
 **Decision:** every table, column, constraint, and index carries a random 8-hex-char `id` besides its `name`. All references (PK columns, FK targets, index columns) point at ids, never names.

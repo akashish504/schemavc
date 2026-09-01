@@ -5,11 +5,19 @@
  */
 
 import { z } from "zod";
+import { bareWordDefaultSuggestion } from "@/core/defaults";
 import type { Op } from "@/core/ops";
 
 const id = z.string().regex(/^[0-9a-f]{8}$/, "ids are 8 lowercase hex chars");
 const name = z.string().min(1).max(63);
 const referentialAction = z.enum(["no_action", "restrict", "cascade", "set_null", "set_default"]);
+
+const sqlDefault = z
+  .string()
+  .max(500)
+  .refine((v) => bareWordDefaultSuggestion(v) === null, {
+    message: "a bare word is read as a column reference by Postgres — string literals need quotes, e.g. 'US'",
+  });
 
 const column = z
   .object({
@@ -17,7 +25,7 @@ const column = z
     name,
     type: z.string().min(1).max(40),
     nullable: z.boolean(),
-    default: z.string().max(500).nullable(),
+    default: sqlDefault.nullable(),
   })
   .strict();
 
@@ -59,7 +67,7 @@ export const opSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("rename_column"), columnId: id, name }).strict(),
   z.object({ kind: z.literal("retype_column"), columnId: id, type: z.string().min(1).max(40) }).strict(),
   z.object({ kind: z.literal("set_nullable"), columnId: id, nullable: z.boolean() }).strict(),
-  z.object({ kind: z.literal("set_default"), columnId: id, default: z.string().max(500).nullable() }).strict(),
+  z.object({ kind: z.literal("set_default"), columnId: id, default: sqlDefault.nullable() }).strict(),
   z.object({ kind: z.literal("add_constraint"), tableId: id, constraint }).strict(),
   z.object({ kind: z.literal("drop_constraint"), constraintId: id }).strict(),
   z.object({ kind: z.literal("add_index"), tableId: id, index }).strict(),
