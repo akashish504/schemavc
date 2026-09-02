@@ -129,7 +129,7 @@ The app's own state (users, branches, commits, deployments) lives in its own Pos
 
 ## 17. Testing philosophy: the taxonomy is data
 
-The merge suite is a table of `(fork, main ops, feature ops) → expected conflicts` — one row per taxonomy case, including the ones that must *auto-merge* (rename + index-on-old-name). Every case is additionally run **with sides swapped**, asserting the conflict set is symmetric — a cheap property test that caught real ordering assumptions. Every clean merge result must pass the validator and must `apply()` onto main's real head. Integration tests cover what unit tests can't: concurrency 409s, the full journey against Postgres, and deploy rollback. 142 tests total; the engine suite runs with no database.
+The merge suite is a table of `(fork, main ops, feature ops) → expected conflicts` — one row per taxonomy case, including the ones that must *auto-merge* (rename + index-on-old-name). Every case is additionally run **with sides swapped**, asserting the conflict set is symmetric — a cheap property test that caught real ordering assumptions. Every clean merge result must pass the validator and must `apply()` onto main's real head. Integration tests cover what unit tests can't: concurrency 409s, the full journey against Postgres, and deploy rollback. 163 tests total; the engine suite runs with no database.
 
 **A bug the invariants caught during development, kept here for honesty:** an early version of the history-walk SQL returned the *entire* history as "pending" when the deployed pointer already equalled main's head — the recursion guard didn't handle the anchor-equals-stop case. The integration test on "mark as deployed" caught it the first time it ran.
 

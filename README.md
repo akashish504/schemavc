@@ -43,7 +43,7 @@ npm test                  # engine + unit suites — no database needed, sub-sec
 npm run test:integration  # + real-Postgres suites (uses schemavc_test / schemavc_test_target on localhost)
 ```
 
-142 tests. The heart is a **table-driven merge suite**: one row per conflict-taxonomy case — including the cases that must auto-merge — each also run with sides swapped to assert conflict symmetry, and every clean result re-validated and re-applied onto main's real head. Integration tests cover the optimistic-concurrency 409s, the full branch→conflict→resolve→merge→deploy journey, and a real deploy that fails mid-script and must roll back completely.
+163 tests. The heart is a **table-driven merge suite**: one row per conflict-taxonomy case — including the cases that must auto-merge — each also run with sides swapped to assert conflict symmetry, and every clean result re-validated and re-applied onto main's real head. Integration tests cover the optimistic-concurrency 409s, the full branch→conflict→resolve→merge→deploy journey, and a real deploy that fails mid-script and must roll back completely.
 
 `GET /api/health/invariant` replays every commit in the live store from the root and verifies each stored snapshot — the persistent-history checksum, callable in production.
 
